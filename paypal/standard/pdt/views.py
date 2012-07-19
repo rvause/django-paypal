@@ -2,11 +2,13 @@
 # -*- coding: utf-8 -*-
 from django.template import RequestContext
 from django.shortcuts import render_to_response
+from django.conf import settings
+from django.utils.translation import ugettext_lazy as _
 from django.views.decorators.http import require_GET
 from paypal.standard.pdt.models import PayPalPDT
 from paypal.standard.pdt.forms import PayPalPDTForm
- 
- 
+
+
 @require_GET
 def pdt(request, item_check_callable=None, template="pdt/pdt.html", context=None):
     """Payment data transfer implementation: http://tinyurl.com/c9jjmw"""
@@ -21,7 +23,7 @@ def pdt(request, item_check_callable=None, template="pdt/pdt.html", context=None
         except PayPalPDT.DoesNotExist:
             # This is a new transaction so we continue processing PDT request
             pass
-        
+
         if pdt_obj is None:
             form = PayPalPDTForm(request.GET)
             if form.is_valid():
@@ -33,18 +35,20 @@ def pdt(request, item_check_callable=None, template="pdt/pdt.html", context=None
             else:
                 error = form.errors
                 failed = True
-            
+
             if failed:
                 pdt_obj = PayPalPDT()
                 pdt_obj.set_flag("Invalid form. %s" % error)
-            
+
             pdt_obj.initialize(request)
-        
+
             if not failed:
                 # The PDT object gets saved during verify
                 pdt_obj.verify(item_check_callable)
     else:
         pass # we ignore any PDT requests that don't have a transaction id
- 
+    if not failed and settings.PAYPAL_MESSAGE:
+        from django.contrib import messages
+        messages.success(request, _(settings.PAYPAL_MESSAGE))
     context.update({"failed":failed, "pdt_obj":pdt_obj})
     return render_to_response(template, context, RequestContext(request))
